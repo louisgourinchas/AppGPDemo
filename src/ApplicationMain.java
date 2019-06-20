@@ -37,8 +37,12 @@ import com.zsmartsystems.zigbee.dongle.ember.ezsp.structure.EmberGpSinkListEntry
 import com.zsmartsystems.zigbee.dongle.ember.ezsp.structure.EmberGpSinkTableEntry;
 import com.zsmartsystems.zigbee.dongle.ember.ezsp.structure.EmberGpSinkTableEntryStatus;
 import com.zsmartsystems.zigbee.dongle.ember.ezsp.structure.EmberKeyData;
+import com.zsmartsystems.zigbee.dongle.ember.greenpower.EzspGpSinkTable;
+import com.zsmartsystems.zigbee.dongle.ember.greenpower.EzspGpSinkTableEntry;
 import com.zsmartsystems.zigbee.dongle.ember.internal.transaction.EzspSingleResponseTransaction;
 import com.zsmartsystems.zigbee.dongle.ember.internal.transaction.EzspTransaction;
+import com.zsmartsystems.zigbee.greenpower.GpCommand;
+import com.zsmartsystems.zigbee.greenpower.ZigBeeGpCommandListener;
 import com.zsmartsystems.zigbee.security.ZigBeeKey;
 import com.zsmartsystems.zigbee.serial.ZigBeeSerialPort;
 import com.zsmartsystems.zigbee.serialization.DefaultDeserializer;
@@ -57,7 +61,7 @@ public class ApplicationMain {
 	static ZigBeeDongleEzsp dongle;
 
 	public static void main(String[] args) {	
-		DOMConfigurator.configure("./log4j.xml");
+		//DOMConfigurator.configure("./log4j.xml");
 
 		final String serialPortName;
 		final Integer serialBaud = 57600;
@@ -98,133 +102,134 @@ public class ApplicationMain {
 
 		final ZigBeePort serialPort = new ZigBeeSerialPort(serialPortName, serialBaud, flowControl);
 		
-		dongle = new ZigBeeDongleEzsp(serialPort) {
-			
-			@Override
-			public void handlePacket(EzspFrame response) {
-				if (response instanceof EzspGpepIncomingMessageHandler) {
-					EzspGpepIncomingMessageHandler frame = (EzspGpepIncomingMessageHandler) response;
-					int sourceId = frame.getAddr().getSourceId();
-					
-					if (frame.getGpdCommandId()==224) {	
-						System.out.println("Frame Gp Commissionning reçue:");
-						System.out.println(response.toString());
-						System.out.println("Dongle ezsp transaction Starting");
-
-						EzspGpSinkTableInitRequest initTableTransactionRequest = new EzspGpSinkTableInitRequest();
-						
-						EzspGpSinkTableFindOrAllocateEntryRequest findIndexTransactionRequest = new EzspGpSinkTableFindOrAllocateEntryRequest();
-						findIndexTransactionRequest.setAddr(frame.getAddr());
-						
-						EzspGpSinkTableSetEntryRequest setEntryTransactionRequest = new EzspGpSinkTableSetEntryRequest();
-						setEntryTransactionRequest.setEntry(buildSinkTableEntry(frame));
-						
-						EzspGpSinkTableGetEntryRequest getEntryTransactionRequest = new EzspGpSinkTableGetEntryRequest();
-						
-						EzspGetCurrentSecurityStateRequest getSecurityState = new EzspGetCurrentSecurityStateRequest();
-						
-						getExecutorService().execute(new Runnable() {
-							@Override
-							public void run() {
-								System.out.println("Sending frame...");
-								System.out.println(initTableTransactionRequest.toString());
-								
-								EzspTransaction transaction = getFrameHandler().sendEzspTransaction(new EzspSingleResponseTransaction(getSecurityState, EzspGetCurrentSecurityStateResponse.class));
-								EzspGetCurrentSecurityStateResponse getSecurityStateResponse = (EzspGetCurrentSecurityStateResponse) transaction.getResponse();
-								
-								System.out.println("Frame received: " + getSecurityStateResponse.toString());
-								System.out.println("Done.");
-							}
-						});
-						
-						getExecutorService().execute(new Runnable() {
-							@Override
-							public void run() {
-								System.out.println("Sending frame...");
-								System.out.println(initTableTransactionRequest.toString());
-								
-								EzspTransaction transaction = getFrameHandler().sendEzspTransaction(new EzspSingleResponseTransaction(initTableTransactionRequest, EzspGpSinkTableInitResponse.class));
-								EzspGpSinkTableInitResponse initTableTransactionResponse = (EzspGpSinkTableInitResponse) transaction.getResponse();
-								
-								System.out.println("Frame received: " + initTableTransactionResponse.toString());
-								System.out.println("Done.");
-							}
-						});
-						
-						getExecutorService().execute(new Runnable() {
-				            @Override
-				            public void run() {
-				            	System.out.println("Sending Frame. . .");
-				            	System.out.println(findIndexTransactionRequest.toString());
-				            	
-				            	EzspTransaction transaction = getFrameHandler().sendEzspTransaction(new EzspSingleResponseTransaction(findIndexTransactionRequest, EzspGpSinkTableFindOrAllocateEntryResponse.class));								
-				            	EzspGpSinkTableFindOrAllocateEntryResponse findIndexTransactionResponse = (EzspGpSinkTableFindOrAllocateEntryResponse) transaction.getResponse();
-								setEntryTransactionRequest.setSinkIndex(findIndexTransactionResponse.getIndex());
-								getEntryTransactionRequest.setSinkIndex(findIndexTransactionResponse.getIndex());
-								
-								System.out.println("Frame received: " + findIndexTransactionResponse.toString());
-				            }
-				        });				
-						
-						getExecutorService().execute(new Runnable() {
-				            @Override
-				            public void run() {
-				            	System.out.println("Sending Frame. . .");
-				            	System.out.println(setEntryTransactionRequest.toString());
-				            	
-				            	EzspTransaction transaction = getFrameHandler().sendEzspTransaction(new EzspSingleResponseTransaction(setEntryTransactionRequest, EzspGpSinkTableSetEntryResponse.class));			
-				            	EzspGpSinkTableSetEntryResponse setEntryTransactionResponse = (EzspGpSinkTableSetEntryResponse) transaction.getResponse();
-				            	
-								System.out.println("Frame received: " + setEntryTransactionResponse.toString());
-				            }
-				        });
-						
-						getExecutorService().execute(new Runnable() {
-				            @Override
-				            public void run() {
-				            	System.out.println("Sending Frame. . .");
-				            	System.out.println(getEntryTransactionRequest.toString());
-				            	
-				            	EzspTransaction transaction = getFrameHandler().sendEzspTransaction(new EzspSingleResponseTransaction(getEntryTransactionRequest, EzspGpSinkTableGetEntryResponse.class));			
-				            	EzspGpSinkTableGetEntryResponse getEntryTransactionResponse = (EzspGpSinkTableGetEntryResponse) transaction.getResponse();
-				            	
-								System.out.println("Frame received: " + getEntryTransactionResponse.toString());
-								System.out.println("Dongle ezsp transaction finished");
-				            }
-				        });				        						
-						
-					}
-					
-					if (frame.getGpdCommandId()==32 /*&& (sourceId==720976 || sourceId==786512)*/) {						
-						verifyDevicePairing(frame);								
-					}
-					
-					if (frame.getGpdCommandId()==33 /*&& (sourceId==720976 || sourceId==786512)*/) {						
-						verifyDevicePairing(frame);
-					}
-				}
-			}
-
-			private void verifyDevicePairing(EzspGpepIncomingMessageHandler frame) {
-				EzspGpSinkTableLookupRequest sinkTableLookupTransactionRequest = new EzspGpSinkTableLookupRequest();
-				sinkTableLookupTransactionRequest.setAddr(frame.getAddr());
-				
-				System.out.println("On/Off verification transaction started");
-				
-				getExecutorService().execute(new Runnable() {
-				    @Override
-				    public void run() {
-				    	System.out.println("Sending Frame. . .");
-				    	System.out.println(sinkTableLookupTransactionRequest.toString());
-				    	
-				    	EzspTransaction transaction = getFrameHandler().sendEzspTransaction(new EzspSingleResponseTransaction(sinkTableLookupTransactionRequest, EzspGpSinkTableLookupResponse.class));								
-				    	EzspGpSinkTableLookupResponse sinkTableLookupTransactionResponse = (EzspGpSinkTableLookupResponse) transaction.getResponse();
-						
-						System.out.println("Frame received: " + sinkTableLookupTransactionResponse.toString());
-				    }
-				});
-			}
-		};
+		dongle = new ZigBeeDongleEzsp(serialPort);
+//		dongle = new ZigBeeDongleEzsp(serialPort) {
+//			
+//			@Override
+//			public void handlePacket(EzspFrame response) {
+//				if (response instanceof EzspGpepIncomingMessageHandler) {
+//					EzspGpepIncomingMessageHandler frame = (EzspGpepIncomingMessageHandler) response;
+//					int sourceId = frame.getAddr().getSourceId();
+//					
+//					if (frame.getGpdCommandId()==224) {	
+//						System.out.println("Frame Gp Commissionning reçue:");
+//						System.out.println(response.toString());
+//						System.out.println("Dongle ezsp transaction Starting");
+//
+//						EzspGpSinkTableInitRequest initTableTransactionRequest = new EzspGpSinkTableInitRequest();
+//						
+//						EzspGpSinkTableFindOrAllocateEntryRequest findIndexTransactionRequest = new EzspGpSinkTableFindOrAllocateEntryRequest();
+//						findIndexTransactionRequest.setAddr(frame.getAddr());
+//						
+//						EzspGpSinkTableSetEntryRequest setEntryTransactionRequest = new EzspGpSinkTableSetEntryRequest();
+//						setEntryTransactionRequest.setEntry(buildSinkTableEntry(frame));
+//						
+//						EzspGpSinkTableGetEntryRequest getEntryTransactionRequest = new EzspGpSinkTableGetEntryRequest();
+//						
+//						EzspGetCurrentSecurityStateRequest getSecurityState = new EzspGetCurrentSecurityStateRequest();
+//						
+//						getExecutorService().execute(new Runnable() {
+//							@Override
+//							public void run() {
+//								System.out.println("Sending frame...");
+//								System.out.println(initTableTransactionRequest.toString());
+//								
+//								EzspTransaction transaction = getFrameHandler().sendEzspTransaction(new EzspSingleResponseTransaction(getSecurityState, EzspGetCurrentSecurityStateResponse.class));
+//								EzspGetCurrentSecurityStateResponse getSecurityStateResponse = (EzspGetCurrentSecurityStateResponse) transaction.getResponse();
+//								
+//								System.out.println("Frame received: " + getSecurityStateResponse.toString());
+//								System.out.println("Done.");
+//							}
+//						});
+//						
+//						getExecutorService().execute(new Runnable() {
+//							@Override
+//							public void run() {
+//								System.out.println("Sending frame...");
+//								System.out.println(initTableTransactionRequest.toString());
+//								
+//								EzspTransaction transaction = getFrameHandler().sendEzspTransaction(new EzspSingleResponseTransaction(initTableTransactionRequest, EzspGpSinkTableInitResponse.class));
+//								EzspGpSinkTableInitResponse initTableTransactionResponse = (EzspGpSinkTableInitResponse) transaction.getResponse();
+//								
+//								System.out.println("Frame received: " + initTableTransactionResponse.toString());
+//								System.out.println("Done.");
+//							}
+//						});
+//						
+//						getExecutorService().execute(new Runnable() {
+//				            @Override
+//				            public void run() {
+//				            	System.out.println("Sending Frame. . .");
+//				            	System.out.println(findIndexTransactionRequest.toString());
+//				            	
+//				            	EzspTransaction transaction = getFrameHandler().sendEzspTransaction(new EzspSingleResponseTransaction(findIndexTransactionRequest, EzspGpSinkTableFindOrAllocateEntryResponse.class));								
+//				            	EzspGpSinkTableFindOrAllocateEntryResponse findIndexTransactionResponse = (EzspGpSinkTableFindOrAllocateEntryResponse) transaction.getResponse();
+//								setEntryTransactionRequest.setSinkIndex(findIndexTransactionResponse.getIndex());
+//								getEntryTransactionRequest.setSinkIndex(findIndexTransactionResponse.getIndex());
+//								
+//								System.out.println("Frame received: " + findIndexTransactionResponse.toString());
+//				            }
+//				        });				
+//						
+//						getExecutorService().execute(new Runnable() {
+//				            @Override
+//				            public void run() {
+//				            	System.out.println("Sending Frame. . .");
+//				            	System.out.println(setEntryTransactionRequest.toString());
+//				            	
+//				            	EzspTransaction transaction = getFrameHandler().sendEzspTransaction(new EzspSingleResponseTransaction(setEntryTransactionRequest, EzspGpSinkTableSetEntryResponse.class));			
+//				            	EzspGpSinkTableSetEntryResponse setEntryTransactionResponse = (EzspGpSinkTableSetEntryResponse) transaction.getResponse();
+//				            	
+//								System.out.println("Frame received: " + setEntryTransactionResponse.toString());
+//				            }
+//				        });
+//						
+//						getExecutorService().execute(new Runnable() {
+//				            @Override
+//				            public void run() {
+//				            	System.out.println("Sending Frame. . .");
+//				            	System.out.println(getEntryTransactionRequest.toString());
+//				            	
+//				            	EzspTransaction transaction = getFrameHandler().sendEzspTransaction(new EzspSingleResponseTransaction(getEntryTransactionRequest, EzspGpSinkTableGetEntryResponse.class));			
+//				            	EzspGpSinkTableGetEntryResponse getEntryTransactionResponse = (EzspGpSinkTableGetEntryResponse) transaction.getResponse();
+//				            	
+//								System.out.println("Frame received: " + getEntryTransactionResponse.toString());
+//								System.out.println("Dongle ezsp transaction finished");
+//				            }
+//				        });				        						
+//						
+//					}
+//					
+//					if (frame.getGpdCommandId()==32 /*&& (sourceId==720976 || sourceId==786512)*/) {						
+//						verifyDevicePairing(frame);								
+//					}
+//					
+//					if (frame.getGpdCommandId()==33 /*&& (sourceId==720976 || sourceId==786512)*/) {						
+//						verifyDevicePairing(frame);
+//					}
+//				}
+//			}
+//
+//			private void verifyDevicePairing(EzspGpepIncomingMessageHandler frame) {
+//				EzspGpSinkTableLookupRequest sinkTableLookupTransactionRequest = new EzspGpSinkTableLookupRequest();
+//				sinkTableLookupTransactionRequest.setAddr(frame.getAddr());
+//				
+//				System.out.println("On/Off verification transaction started");
+//				
+//				getExecutorService().execute(new Runnable() {
+//				    @Override
+//				    public void run() {
+//				    	System.out.println("Sending Frame. . .");
+//				    	System.out.println(sinkTableLookupTransactionRequest.toString());
+//				    	
+//				    	EzspTransaction transaction = getFrameHandler().sendEzspTransaction(new EzspSingleResponseTransaction(sinkTableLookupTransactionRequest, EzspGpSinkTableLookupResponse.class));								
+//				    	EzspGpSinkTableLookupResponse sinkTableLookupTransactionResponse = (EzspGpSinkTableLookupResponse) transaction.getResponse();
+//						
+//						System.out.println("Frame received: " + sinkTableLookupTransactionResponse.toString());
+//				    }
+//				});
+//			}
+//		};
 		
 		transportOptions.addOption(TransportConfigOption.RADIO_TX_POWER, 8);
 
@@ -239,11 +244,75 @@ public class ApplicationMain {
 		transportOptions.addOption(TransportConfigOption.CONCENTRATOR_CONFIG, concentratorConfig);
 
 		ZigBeeNetworkManager networkManager = new ZigBeeNetworkManager(dongle);
-
+		
+		//TODO create a method to initialize GP functionnality as a whole.
+		
+		networkManager.setGpTransport(dongle);
+		networkManager.setGpTransactionManager();
+		networkManager.addGpCommandListener(new ZigBeeGpCommandListener() {			
+			@Override
+			public void gpCommandReceived(GpCommand command) {
+				switch (command.getCommandId()) {
+					case 32: //off
+						System.out.println("[GP]Off command received");
+						break;
+					case 33: //on
+						System.out.println("[GP]On command received");
+						break;
+					case 160: //attribute reporting
+						System.out.println("[GP]Attribute reporting command received");
+						int[] payload = command.getPayload();
+						int type = (payload[1]  <<8) + payload[0];
+						String str_type = "";
+						switch(type) {
+						case 1026:
+							str_type="Mesure de la température";
+							break;
+						case 1029:
+							str_type="Mesure de l'humidité";
+							break;
+						default:
+							str_type="Unknown";
+							break;
+						}
+						System.out.println("" + str_type + " reçue");
+						float value = (payload[6]  <<8) + payload[5];
+						String complement = "";
+						if (type == 1026)
+							complement = " °C";
+						else
+							complement=" %";
+						System.out.println("Valeur reçue: " + value/100 + complement);
+						break;
+					case 224: //commissioning
+					default:
+						System.out.println("[Gp]Command received");
+						break;
+				}
+				//System.out.println(command.toString());
+			}
+		});
+		
+		EzspGpSinkTable table = new EzspGpSinkTable();
+		table.init();
+		
+		EmberGpAddress address = new EmberGpAddress();
+		address.setGpdIeeeAddress(new IeeeAddress("BBCCDDAABBCCDD00"));
+		address.setSourceId(14535867);
+		address.setApplicationId(EmberGpApplicationId.getEmberGpApplicationId(0x1000));
+		address.setEndpoint(179);
+		
+		int index = table.findOrAllocateEntry(address);
+		EzspGpSinkTableEntry entry = new EzspGpSinkTableEntry();
+		entry.setAddress(address);
+		table.setEntry(index, entry);
+		
+		networkManager.useVirtualSink(table);
+		
 		ZigBeeNetworkDataStore dataStore = new ZigBeeDataStore("EMBER");
 		networkManager.setNetworkDataStore(dataStore);
 		networkManager.setSerializer(DefaultSerializer.class, DefaultDeserializer.class);
-
+		
 		ZigBeeStatus initResponse = networkManager.initialize();
 		System.out.println("networkManager.initialize returned " + initResponse);
 
@@ -262,9 +331,9 @@ public class ApplicationMain {
 		dongle.updateTransportConfig(transportOptions);
 
 		if (networkManager.startup(true) != ZigBeeStatus.SUCCESS) {
-			System.out.println("Oupsie, something went wrong.");
+			System.out.println("Network Initialisation failed.");
 		} else {
-			System.out.println("Everything went well.");
+			System.out.println("Network initialization & setup succeeded.");
 		}
 
 	}
