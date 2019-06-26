@@ -266,23 +266,23 @@ public class ApplicationMain {
 						String str_type = "";
 						switch(type) {
 						case 1026:
-							str_type="Mesure de la tempÃ©rature";
+							str_type="Mesure de la température";
 							break;
 						case 1029:
-							str_type="Mesure de l'humiditÃ©";
+							str_type="Mesure de l'humidité";
 							break;
 						default:
 							str_type="Unknown";
 							break;
 						}
-						System.out.println("" + str_type + " reÃ§ue");
+						System.out.print("" + str_type + " reçue : ");
 						float value = (payload[6]  <<8) + payload[5];
 						String complement = "";
 						if (type == 1026)
-							complement = " Â°C";
+							complement = " °C";
 						else
 							complement=" %";
-						System.out.println("Valeur reÃ§ue: " + value/100 + complement);
+						System.out.println(value/100 + complement);
 						break;
 					case 224: //commissioning
 					default:
@@ -297,9 +297,9 @@ public class ApplicationMain {
 		table.init();
 		
 		EmberGpAddress address = new EmberGpAddress();
-		address.setGpdIeeeAddress(new IeeeAddress("BBCCDDAABBCCDD00"));
-		address.setSourceId(14535867);
-		address.setApplicationId(EmberGpApplicationId.getEmberGpApplicationId(0x1000));
+		address.setGpdIeeeAddress(new IeeeAddress("FFFFFFAAFFFFFFAA"));
+		address.setSourceId(-1426063361);
+		address.setApplicationId(EmberGpApplicationId.EMBER_GP_APPLICATION_SOURCE_ID);
 		address.setEndpoint(179);
 		
 		int index = table.findOrAllocateEntry(address);
